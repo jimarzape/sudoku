@@ -13,13 +13,16 @@ interface CellProps {
 function CellBase({
   value,
   isFixed,
-  isSelected,
+  isSelected: _isSelectedProp,
   row,
   col,
   onClick,
 }: CellProps) {
   const board = useGameStore((state) => state.board);
   const selectedCell = useGameStore((state) => state.selectedCell);
+
+  // Compute isSelected directly from store for immediate updates
+  const isSelected = selectedCell?.r === row && selectedCell?.c === col;
 
   // Check if this cell should be highlighted
   const isHighlighted =
@@ -99,10 +102,10 @@ function CellBase({
 }
 
 function propsEqual(a: CellProps, b: CellProps) {
+  // isSelected is computed from store, so don't compare it
   return (
     a.value === b.value &&
     a.isFixed === b.isFixed &&
-    a.isSelected === b.isSelected &&
     a.row === b.row &&
     a.col === b.col &&
     a.onClick === b.onClick
