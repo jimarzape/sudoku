@@ -1,23 +1,33 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useGameStore } from "../store/gameStore";
 import { Typography } from "@mui/material";
 
 export default function Timer() {
   const timer = useGameStore((state) => state.timer);
+  const intervalRef = useRef<number | null>(null);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      useGameStore.setState((state) => ({ timer: state.timer + 1 }));
-    }, 1000);
-
-    const handleVisibility = () => {
-      if (document.hidden) {
-        clearInterval(interval);
+    const start = () => {
+      if (intervalRef.current != null) return;
+      intervalRef.current = window.setInterval(() => {
+        useGameStore.setState((state) => ({ timer: state.timer + 1 }));
+      }, 1000);
+    };
+    const stop = () => {
+      if (intervalRef.current != null) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
       }
     };
-    document.addEventListener("visibilitychange", handleVisibility);
-
-    return () => clearInterval(interval);
+    // initial start
+    start();
+    // pause on background, resume on foreground
+    const onVis = () => (document.hidden ? stop() : start());
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      stop();
+    };
   }, []);
 
   const formatTime = (seconds: number): string => {

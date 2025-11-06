@@ -1,29 +1,21 @@
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import { useGameStore } from "../store/gameStore";
+import clsx from "clsx";
 
 interface CellProps {
   value: number;
   isFixed: boolean;
-  isSelected: boolean;
   row: number;
   col: number;
   onClick: () => void;
 }
 
-function CellBase({
-  value,
-  isFixed,
-  isSelected: _isSelectedProp,
-  row,
-  col,
-  onClick,
-}: CellProps) {
+function CellBase({ value, isFixed, row, col, onClick }: CellProps) {
   const board = useGameStore((state) => state.board);
   const selectedCell = useGameStore((state) => state.selectedCell);
 
   // Compute isSelected directly from store for immediate updates
   const isSelected = selectedCell?.r === row && selectedCell?.c === col;
-
   // Check if this cell should be highlighted
   const isHighlighted =
     selectedCell &&
@@ -39,34 +31,28 @@ function CellBase({
     board[selectedCell.r][selectedCell.c] === value &&
     value !== 0;
 
-  const getCellClasses = () => {
-    let classes =
-      "flex items-center justify-center select-none cursor-pointer ";
-
-    // square size responsive
-    classes += " text-xl sm:text-2xl md:text-3xl ";
-
-    // Base background
-    classes += isFixed ? " bg-gray-50 font-bold " : " bg-white ";
-
-    // Grid lines: thin cell borders, thick 3x3 borders
-    classes += " border border-gray-300 ";
-    if (col % 3 === 0) classes += " border-l-2 ";
-    if (row % 3 === 0) classes += " border-t-2 ";
-    if (col === 8) classes += " border-r-2 ";
-    if (row === 8) classes += " border-b-2 ";
-    if ((col + 1) % 3 === 0) classes += " border-r-2 ";
-    if ((row + 1) % 3 === 0) classes += " border-b-2 ";
-
-    // Highlights
-    if (isHighlighted && !isSelected) classes += " bg-blue-50 ";
-    if (hasSameValue) classes += " bg-yellow-100 ";
-    if (isSelected)
-      classes +=
-        " outline outline-4 outline-blue-600 outline-offset-[-4px] bg-blue-100 z-[1] ";
-
-    return classes;
-  };
+  const className = useMemo(
+    () =>
+      clsx(
+        "flex items-center justify-center select-none cursor-pointer",
+        "text-xl sm:text-2xl md:text-3xl",
+        isFixed ? "bg-gray-50 font-bold" : "bg-white",
+        "border border-gray-300",
+        { "border-l-2": col % 3 === 0 },
+        { "border-t-2": row % 3 === 0 },
+        { "border-r-2": col === 8 },
+        { "border-b-2": row === 8 },
+        { "border-r-2": (col + 1) % 3 === 0 },
+        { "border-b-2": (row + 1) % 3 === 0 },
+        { "bg-blue-50": isHighlighted && !isSelected },
+        { "bg-yellow-100": hasSameValue },
+        {
+          "outline outline-4 outline-blue-600 outline-offset-[-4px] bg-blue-100 z-[1]":
+            isSelected,
+        }
+      ),
+    [isFixed, row, col, isHighlighted, hasSameValue, isSelected]
+  );
 
   const labelParts = [
     `Row ${row + 1}`,
@@ -88,10 +74,10 @@ function CellBase({
           onClick();
         }
       }}
-      className={
-        getCellClasses() +
-        " focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
-      }
+      className={clsx(
+        className,
+        "focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+      )}
       onMouseDown={() => onClick()}
       onClick={onClick}
       style={{ aspectRatio: "1 / 1" }}

@@ -215,6 +215,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       notes: createEmptyNotes(),
       history,
       redoStack: [],
+      timer: 0,
       precomputedCandidates: null,
     });
   },
