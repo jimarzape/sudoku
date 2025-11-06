@@ -3,6 +3,7 @@ import type { Board, Difficulty } from "../engine/types";
 import { createEmptyBoard, cloneBoard } from "../engine/types";
 import { generatePuzzle } from "../engine/generator";
 import { getHint } from "../engine/hints";
+import { isValid } from "../engine/solver";
 
 type Mode = "value" | "note";
 
@@ -36,6 +37,7 @@ export interface GameState {
   timer: number;
   settings: Settings;
   precomputedCandidates?: Set<number>[][] | null;
+  hintsRemaining: number;
 
   // actions
   newGame: (difficulty?: Difficulty) => void;
@@ -100,6 +102,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     keymap: "classic",
   },
   precomputedCandidates: null,
+  hintsRemaining: 3,
 
   newGame: (difficulty) => {
     const d = difficulty ?? get().difficulty;
@@ -115,6 +118,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       difficulty: d,
       timer: 0,
       precomputedCandidates: null,
+      hintsRemaining: 3,
     });
   },
 
@@ -196,13 +200,82 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   hint: () => {
     const state = get();
+    if (state.hintsRemaining <= 0) return;
+    // Require a selected editable cell
+    const sel = state.selectedCell;
+    if (!sel) return;
+    if (state.puzzle[sel.r][sel.c] !== 0) return;
+    if (state.board[sel.r][sel.c] !== 0) return;
     performance.mark?.('hint:start');
-    const h = getHint(state.board);
-    if (!h) return;
+    // First try to compute a hint specifically for the selected cell
+    const { r, c } = sel;
+    let value: number | null = null;
+    // Technique 1: single-candidate for selected cell
+    const candidates: number[] = [];
+    for (let n = 1; n <= 9; n++) if (isValid(state.board, r, c, n)) candidates.push(n);
+    if (candidates.length === 1) {
+      value = candidates[0];
+    } else {
+      // Technique 2: single-position in row/col/box for selected cell
+      // Row
+      for (let n = 1; n <= 9 && value === null; n++) {
+        if (!isValid(state.board, r, c, n)) continue;
+        let onlyHere = true;
+        for (let cc = 0; cc < 9; cc++) {
+          if (cc === c) continue;
+          if (state.board[r][cc] === 0 && isValid(state.board, r, cc, n)) {
+            onlyHere = false;
+            break;
+          }
+        }
+        if (onlyHere) value = n;
+      }
+      // Col
+      for (let n = 1; n <= 9 && value === null; n++) {
+        if (!isValid(state.board, r, c, n)) continue;
+        let onlyHere = true;
+        for (let rr = 0; rr < 9; rr++) {
+          if (rr === r) continue;
+          if (state.board[rr][c] === 0 && isValid(state.board, rr, c, n)) {
+            onlyHere = false;
+            break;
+          }
+        }
+        if (onlyHere) value = n;
+      }
+      // Box
+      const br = Math.floor(r / 3) * 3;
+      const bc = Math.floor(c / 3) * 3;
+      for (let n = 1; n <= 9 && value === null; n++) {
+        if (!isValid(state.board, r, c, n)) continue;
+        let onlyHere = true;
+        for (let i = 0; i < 3; i++) {
+          for (let j = 0; j < 3; j++) {
+            const rr = br + i;
+            const cc = bc + j;
+            if (rr === r && cc === c) continue;
+            if (state.board[rr][cc] === 0 && isValid(state.board, rr, cc, n)) {
+              onlyHere = false;
+              break;
+            }
+          }
+          if (!onlyHere) break;
+        }
+        if (onlyHere) value = n;
+      }
+    }
+    // Fallback: use generic hint only if it targets selected cell
+    if (value === null) {
+      const h = getHint(state.board);
+      if (!h) return;
+      if (h.position.r !== r || h.position.c !== c) return;
+      value = h.value;
+    }
+    if (value === null) return;
     const history = pushHistory(state);
     const board = state.board.map((row) => row.slice());
-    board[h.position.r][h.position.c] = h.value;
-    set({ board, history, redoStack: [], precomputedCandidates: null });
+    board[r][c] = value;
+    set({ board, history, redoStack: [], precomputedCandidates: null, hintsRemaining: state.hintsRemaining - 1 });
     performance.mark?.('hint:end');
     performance.measure?.('hint', 'hint:start', 'hint:end');
   },
@@ -217,6 +290,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       redoStack: [],
       timer: 0,
       precomputedCandidates: null,
+      hintsRemaining: 3,
     });
   },
 
@@ -230,6 +304,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       difficulty: state.difficulty,
       timer: state.timer,
       settings: state.settings,
+      hintsRemaining: state.hintsRemaining,
     };
     try {
       localStorage.setItem(LS_KEY, JSON.stringify(payload));
@@ -253,6 +328,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         difficulty: data.difficulty ?? "easy",
         timer: data.timer ?? 0,
         settings: { ...get().settings, ...(data.settings ?? {}) },
+        hintsRemaining: data.hintsRemaining ?? 3,
       });
     } catch {}
   },
@@ -269,6 +345,7 @@ if (typeof window !== "undefined") {
       difficulty: state.difficulty,
       timer: state.timer,
       settings: state.settings,
+      hintsRemaining: state.hintsRemaining,
     };
     try {
       localStorage.setItem(LS_KEY, JSON.stringify(payload));

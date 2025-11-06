@@ -9,6 +9,7 @@ export default function Toolbar() {
   const redo = useGameStore((state) => state.redo);
   const hint = useGameStore((state) => state.hint);
   const reset = useGameStore((state) => state.reset);
+  const hintsRemaining = useGameStore((state) => state.hintsRemaining);
 
   return (
     <Stack direction="row" spacing={2} alignItems="center" className="mb-6">
@@ -24,8 +25,13 @@ export default function Toolbar() {
       <ButtonGroup variant="outlined" size="small">
         <Button onClick={undo}>Undo</Button>
         <Button onClick={redo}>Redo</Button>
-        <Button onClick={hint} color="primary">
-          Hint
+        <Button
+          onClick={hint}
+          color="primary"
+          disabled={hintsRemaining <= 0}
+          title={hintsRemaining > 0 ? `${hintsRemaining} hint${hintsRemaining !== 1 ? 's' : ''} remaining` : 'No hints remaining'}
+        >
+          Hint {hintsRemaining > 0 && `(${hintsRemaining})`}
         </Button>
       </ButtonGroup>
 
